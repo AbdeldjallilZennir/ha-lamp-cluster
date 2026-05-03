@@ -1,0 +1,20 @@
+name: HA Cluster Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-to-private-vpc:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+
+      - name: Deploy to Web Node 1 (192.168.100.249)
+        run: scp -i /home/ubuntu/ha-lamp-key.pem -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa index.php ubuntu@192.168.100.249:/var/www/html/
+
+      - name: Deploy to Web Node 2 (192.168.100.12)
+        run: scp -i /home/ubuntu/ha-lamp-key.pem -o StrictHostKeyChecking=no -o PubkeyAcceptedKeyTypes=+ssh-rsa -o HostKeyAlgorithms=+ssh-rsa index.php ubuntu@192.168.100.12:/var/www/html/

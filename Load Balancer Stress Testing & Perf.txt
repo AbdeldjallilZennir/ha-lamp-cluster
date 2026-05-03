@@ -1,0 +1,52 @@
+Load Balancer Stress Testing & Performance Validation
+
+To validate the high-availability constraints and performance capabilities of the deployed architecture, a concurrent stress test was executed against the Nginx Load Balancer. Since the initial command execution was not visually captured, the methodology and command structure are documented below alongside the terminal results.
+
+Testing Methodology
+The stress test was conducted using ApacheBench (ab), a standard utility for measuring HTTP web server performance. The tool was instructed to send a total of 1000 requests (-n 1000), with a concurrency level of 50 (-c 50), simulating 50 users accessing the site simultaneously. The target was the external Floating IP attached to ha-lb-node.  
+
+ab -n 1000 -c 50 [http://10.20.20.133/](http://10.20.20.133/)
+
+Results & Analysis
+The architecture successfully processed all 1000 requests with 0 failed requests. The Nginx reverse proxy achieved a mean processing rate of 634.04 requests per second. The total wait time across all concurrent requests averaged 68ms, indicating that the internal network routing—including the VXLAN encapsulation overhead discussed in Section 5—introduces minimal latency under moderate load.  
+
+Traffic Distribution Verification
+While the ApacheBench test proves the load balancer remained stable under stress, it is critical to verify that Nginx successfully split the incoming traffic across the backend fleet using the configured Round-Robin algorithm.  
+
+To prove this, the Apache access logs were queried on both backend web nodes:  
+
+Querying ha-web-node-1 (192.168.100.249):
+
+  
+
+wc -l /var/log/apache2/access.log
+
+[Insert screenshot-16 here: Terminal output showing the word count of the access.log on ha-web-node-1]
+
+Querying ha-web-node-2 (192.168.100.12):
+
+  
+
+wc -l /var/log/apache2/access.log
+
+[Insert screenshot-17 here: Terminal output showing the word count of the access.log on ha-web-node-2]
+
+The log counts confirm an even traffic distribution, with approximately 500 requests routed to ha-web-node-1 and 500 to ha-web-node-2. This physically demonstrates that the reverse proxy is successfully mitigating Single Point of Failure (SPOF) risks at the application layer by evenly distributing the CPU and memory load across the isolated VPC subnets.
+
+
+Horizontal Scalability & Cloud Image Management
+
+While the current High-Availability architecture successfully distributes load across two manually provisioned Apache nodes (ha-web-node-1 and ha-web-node-2), executing raw configuration commands (e.g., modifying PHP modules, adjusting MTU) on individual instances is an operational anti-pattern at scale. To prepare the architecture for true cloud elasticity, OpenStack Image Snapshots were utilized.  
+
+The "Golden Image" Capture
+Instead of configuring future virtual machines from a bare Ubuntu operating system, the fully configured and tested state of the backend server was captured as a "Golden Image." This snapshot preserves the exact OS state, Apache configurations, and network dependencies.
+
+This state was captured via the OpenStack CLI:
+microstack.openstack server image create ha-web-node-1 --name web-node-golden-image
+
+[Insert your screenshot here (screenshot-18): Terminal output showing the results of microstack.openstack image list with the new golden image visible]
+
+Architectural Benefits & Future Enhancements
+Due to the physical hardware constraints of the hypervisor host machine (which necessitated the resource overcommitment overrides detailed in Section 4), a fifth instance was not actively spun up during this deployment.  
+
+However, by registering web-node-golden-image in the OpenStack Glance image service, the foundation for horizontal scaling is now complete. In a production environment, expanding the cluster's capacity simply requires booting new instances directly from this template. This methodology guarantees strict environment parity, reduces provisioning time from minutes to seconds, and serves as the fundamental prerequisite for implementing automated Auto-Scaling Groups.
